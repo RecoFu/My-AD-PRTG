@@ -1,0 +1,111 @@
+好的，讓我們來補充PowerShell安裝Docker的指令，並將所有程式碼進行模組化合併。以下是完整的模組化腳本，包含安裝Docker、建立Docker容器、安裝AD Domain Controller和PRTG，並設定監控AD Domain和Exchange的整體健康狀態。
+
+### 步驟 1: 安裝 Docker
+首先，使用PowerShell安裝Docker：
+
+```powershell
+# 安裝Docker
+Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force
+Install-Module -Name DockerMsftProvider -Force
+Install-Package -Name docker -ProviderName DockerMsftProvider -Force
+Restart-Computer -Force
+```
+
+### 步驟 2: 建立 Dockerfile
+接下來，建立一個Dockerfile來定義容器的配置：
+
+```dockerfile
+# 使用Windows Server Core作為基礎映像
+FROM mcr.microsoft.com/windows/servercore:ltsc2019
+
+# 安裝AD Domain Controller和PRTG
+RUN powershell -Command `
+    Install-WindowsFeature -Name AD-Domain-Services; `
+    Install-WindowsFeature -Name RSAT-AD-AdminCenter; `
+    Invoke-WebRequest -Uri "https://www.paessler.com/download/prtg-download" -OutFile "C:\\prtg.zip"; `
+    Expand-Archive -Path "C:\\prtg.zip" -DestinationPath "C:\\prtg"; `
+    Start-Process -FilePath "C:\\prtg\\setup.exe" -ArgumentList "/S" -Wait
+```
+
+### 步驟 3: 編寫 PowerShell 腳本
+以下是模組化的PowerShell腳本，包含安裝和設定的詳細步驟：
+
+```powershell
+# 定義變數
+$domainName = "example.com"
+$adminPassword = ConvertTo-SecureString "P@ssw0rd" -AsPlainText -Force
+$prtgServer = "localhost"
+$prtgUser = "admin"
+$prtgPass = "prtgadmin"
+
+# 安裝AD Domain Controller
+function Install-ADDomainController {
+    param (
+        [string]$domainName,
+        [SecureString]$adminPassword
+    )
+    Install-ADDSForest -DomainName $domainName -SafeModeAdministratorPassword $adminPassword
+}
+
+# 安裝並設定PRTG
+function Install-PRTG {
+    Start-Process -FilePath "C:\\prtg\\setup.exe" -ArgumentList "/S" -Wait
+}
+
+# 設定PRTG監控AD Domain和Exchange
+function Configure-PRTG {
+    param (
+        [string]$prtgServer,
+        [string]$prtgUser,
+        [string]$prtgPass
+    )
+    $prtgSession = New-PrtgSession -Server $prtgServer -Username $prtgUser -Password $prtgPass
+    Add-PrtgSensor -Session $prtgSession -Device "AD Domain Controller" -SensorType "Active Directory"
+    Add-PrtgSensor -Session $prtgSession -Device "Exchange Server" -SensorType "Exchange Server"
+}
+
+# 查驗整體健康狀態的指令
+function Check-HealthStatus {
+    param (
+        [string]$prtgServer,
+        [string]$prtgUser,
+        [string]$prtgPass
+    )
+    $prtgSession = New-PrtgSession -Server $prtgServer -Username $prtgUser -Password $prtgPass
+    Get-PrtgSensor -Session $prtgSession -Device "AD Domain Controller"
+    Get-PrtgSensor -Session $prtgSession -Device "Exchange Server"
+}
+
+# 執行安裝和設定
+Install-ADDomainController -domainName $domainName -adminPassword $adminPassword
+Install-PRTG
+Configure-PRTG -prtgServer $prtgServer -prtgUser $prtgUser -prtgPass $prtgPass
+Check-HealthStatus -prtgServer $prtgServer -prtgUser $prtgUser -prtgPass $prtgPass
+```
+
+### 步驟 4: 建立 Docker 映像
+使用以下命令來建立Docker映像：
+
+```bash
+docker build -t my-ad-prtg .
+```
+
+### 步驟 5: 執行 Docker 容器
+使用以下命令來執行Docker容器：
+
+```bash
+docker run -d --name my-ad-prtg my-ad-prtg
+```
+
+### 步驟 6: 上傳到 GitHub
+最後，將你的腳本和Dockerfile上傳到GitHub。你可以使用以下命令：
+
+```bash
+git init
+git add .
+git commit -m "Initial commit"
+git remote add origin https://github.com/yourusername/yourrepository.git
+git push -u origin master
+```
+
+這樣你就完成了！如果你有任何問題或需要進一步的幫助，隨時告訴我。😊
